@@ -1,0 +1,2618 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>天大充电地图 - 实时空余充电桩查询</title>
+    
+    <!-- Global Error Boundary for Remote Mobile Diagnostics (Must compile first) -->
+    <script>
+        window.onerror = function(message, source, lineno, colno, error) {
+            var errDiv = document.getElementById("phone-debug-console");
+            if (!errDiv) {
+                errDiv = document.createElement("div");
+                errDiv.id = "phone-debug-console";
+                errDiv.style.position = "fixed";
+                errDiv.style.bottom = "0";
+                errDiv.style.left = "0";
+                errDiv.style.right = "0";
+                errDiv.style.background = "#ff3366";
+                errDiv.style.color = "#fff";
+                errDiv.style.padding = "12px";
+                errDiv.style.zIndex = "999999";
+                errDiv.style.fontSize = "11px";
+                errDiv.style.maxHeight = "150px";
+                errDiv.style.overflowY = "auto";
+                errDiv.style.wordBreak = "break-all";
+                errDiv.style.boxShadow = "0 -4px 16px rgba(0,0,0,0.3)";
+                if (document.body) {
+                    document.body.appendChild(errDiv);
+                } else {
+                    document.addEventListener("DOMContentLoaded", function() {
+                        document.body.appendChild(errDiv);
+                    });
+                }
+            }
+            errDiv.innerHTML = "❌ <b>页面JS脚本编译/运行错误:</b> " + message + "<br><small>出错文件: " + source + "<br>所在行数: 第 " + lineno + " 行，列 " + colno + "</small>";
+            return false;
+        };
+    </script>
+
+    <!-- Leaflet Map CSS -->
+    <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/leaflet/1.9.4/leaflet.css"/>
+    <!-- Google Fonts for Modern Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Design System & Variables */
+        :root {
+            --bg-main: #070b13;
+            --bg-header: rgba(13, 20, 35, 0.8);
+            --bg-card: rgba(20, 30, 54, 0.65);
+            --bg-drawer: #0e1526;
+            --border-color: rgba(255, 255, 255, 0.07);
+            --border-hover: rgba(0, 255, 136, 0.3);
+            
+            /* Neon Electric Colors */
+            --color-green: #00ff9d;
+            --color-green-glow: rgba(0, 255, 157, 0.25);
+            --color-blue: #00e1ff;
+            --color-blue-glow: rgba(0, 225, 255, 0.25);
+            --color-yellow: #ffd000;
+            --color-yellow-glow: rgba(255, 208, 0, 0.25);
+            --color-red: #ff3366;
+            --color-red-glow: rgba(255, 51, 102, 0.25);
+            
+            /* Text Colors */
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            
+            /* Typography & Shadows */
+            --font-heading: 'Outfit', 'Inter', -apple-system, sans-serif;
+            --font-body: 'Inter', -apple-system, sans-serif;
+            --shadow-premium: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            --shadow-glow: 0 0 15px var(--color-green-glow);
+            --radius-lg: 16px;
+            --radius-md: 12px;
+            --radius-sm: 8px;
+            
+            /* Transitions */
+            --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Reset & Basic Styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-primary);
+            font-family: var(--font-body);
+            overflow-x: hidden;
+            line-height: 1.5;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(0, 225, 255, 0.05) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(0, 255, 157, 0.05) 0px, transparent 50%);
+            background-attachment: fixed;
+        }
+
+        /* App Layout */
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            padding-bottom: 24px;
+        }
+
+        /* Header */
+        .app-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            background-color: var(--bg-header);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .header-logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .icon-bolt {
+            width: 24px;
+            height: 24px;
+            color: var(--color-green);
+            filter: drop-shadow(0 0 8px var(--color-green));
+            animation: pulse-bolt 2s infinite ease-in-out;
+        }
+
+        @keyframes pulse-bolt {
+            0%, 100% { filter: drop-shadow(0 0 4px var(--color-green)); opacity: 0.8; }
+            50% { filter: drop-shadow(0 0 12px var(--color-green)); opacity: 1; }
+        }
+
+        .header-logo h1 {
+            font-family: var(--font-heading);
+            font-size: 1.25rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            background: linear-gradient(135deg, #ffffff 0%, var(--text-secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            transition: var(--transition-smooth);
+        }
+
+        .status-badge.live {
+            border-color: var(--color-green);
+            color: var(--color-green);
+            background: rgba(0, 255, 157, 0.05);
+        }
+
+        .pulse-dot {
+            width: 6px;
+            height: 6px;
+            background-color: var(--color-blue);
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--color-blue);
+            display: inline-block;
+        }
+
+        .status-badge.live .pulse-dot {
+            background-color: var(--color-green);
+            box-shadow: 0 0 8px var(--color-green);
+            animation: pulse-dot 1.5s infinite ease-in-out;
+        }
+
+        @keyframes pulse-dot {
+            0% { transform: scale(0.95); opacity: 0.5; }
+            50% { transform: scale(1.2); opacity: 1; box-shadow: 0 0 12px var(--color-green); }
+            100% { transform: scale(0.95); opacity: 0.5; }
+        }
+
+        .icon-btn {
+            background: none;
+            border: 1px solid var(--border-color);
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-primary);
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.03);
+            transition: var(--transition-smooth);
+        }
+
+        .icon-btn:hover {
+            border-color: var(--text-secondary);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .icon-gear {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* Campus Selector */
+        .campus-selector {
+            display: flex;
+            padding: 6px;
+            background-color: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            margin: 16px 16px 12px;
+        }
+
+        .campus-tab {
+            flex: 1;
+            border: none;
+            background: none;
+            color: var(--text-secondary);
+            padding: 10px;
+            font-family: var(--font-heading);
+            font-size: 0.9rem;
+            font-weight: 600;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: var(--transition-smooth);
+        }
+
+        .campus-tab.active {
+            background-color: rgba(255, 255, 255, 0.08);
+            color: var(--text-primary);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        /* Search and Filter Panel */
+        .search-filter-container {
+            display: flex;
+            gap: 8px;
+            padding: 0 16px;
+            margin-bottom: 12px;
+        }
+
+        .search-box {
+            flex: 1;
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 12px;
+            width: 16px;
+            height: 16px;
+            color: var(--text-muted);
+            pointer-events: none;
+        }
+
+        .search-box input {
+            width: 100%;
+            background-color: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 10px 12px 10px 38px;
+            color: var(--text-primary);
+            font-family: var(--font-body);
+            font-size: 0.85rem;
+            outline: none;
+            transition: var(--transition-smooth);
+        }
+
+        .search-box input:focus {
+            border-color: rgba(0, 225, 255, 0.4);
+            background-color: rgba(255, 255, 255, 0.05);
+            box-shadow: 0 0 15px rgba(0, 225, 255, 0.08);
+        }
+
+        .filter-toggle-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background-color: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 0 14px;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+        }
+
+        .filter-toggle-btn.active {
+            border-color: var(--color-green);
+            color: var(--color-green);
+            background-color: rgba(0, 255, 157, 0.05);
+        }
+
+        .filter-indicator {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background-color: var(--text-muted);
+            transition: var(--transition-smooth);
+        }
+
+        .filter-toggle-btn.active .filter-indicator {
+            background-color: var(--color-green);
+            box-shadow: 0 0 8px var(--color-green);
+        }
+
+        /* Map Wrapper */
+        .map-wrapper {
+            position: relative;
+            height: 38vh;
+            margin: 0 16px 12px;
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-premium);
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            background: #0b0f19;
+        }
+
+        .map-recenter-btn {
+            position: absolute;
+            bottom: 16px;
+            right: 16px;
+            z-index: 999;
+            background: rgba(13, 20, 35, 0.85);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid var(--border-color);
+            border-radius: 50%;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-primary);
+            cursor: pointer;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+            transition: var(--transition-smooth);
+        }
+
+        .map-recenter-btn:active {
+            transform: scale(0.9);
+        }
+
+        .map-recenter-btn svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* Leaflet Map Dark Modding & Markers */
+        .leaflet-container {
+            background: #090d16 !important;
+        }
+
+        .leaflet-bar {
+            border: 1px solid var(--border-color) !important;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3) !important;
+        }
+
+        .leaflet-bar a {
+            background-color: rgba(13, 20, 35, 0.9) !important;
+            color: var(--text-primary) !important;
+            border-bottom: 1px solid var(--border-color) !important;
+        }
+
+        .leaflet-bar a:hover {
+            background-color: rgba(255, 255, 255, 0.08) !important;
+        }
+
+        .leaflet-popup-content-wrapper {
+            background: rgba(14, 21, 38, 0.95) !important;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary) !important;
+            border-radius: var(--radius-md) !important;
+            box-shadow: var(--shadow-premium) !important;
+        }
+
+        .leaflet-popup-tip {
+            background: rgba(14, 21, 38, 0.95) !important;
+            border-left: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        /* Custom Div Markers */
+        .custom-marker {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .marker-pin {
+            width: 28px;
+            height: 28px;
+            border-radius: 50% 50% 50% 0;
+            background: var(--color-green);
+            position: absolute;
+            transform: rotate(-45deg);
+            left: 50%;
+            top: 50%;
+            margin: -14px 0 0 -14px;
+            box-shadow: 0 0 10px var(--color-green-glow);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1.5px solid rgba(255, 255, 255, 0.4);
+            transition: var(--transition-smooth);
+        }
+
+        .marker-pin::after {
+            content: '';
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #090d16;
+            position: absolute;
+        }
+
+        .marker-inner {
+            z-index: 10;
+            color: var(--color-green);
+            font-family: var(--font-heading);
+            font-size: 0.75rem;
+            font-weight: 700;
+            transform: rotate(45deg);
+            position: relative;
+            top: -1px;
+            left: -1px;
+        }
+
+        .custom-marker.few .marker-pin {
+            background: var(--color-yellow);
+            box-shadow: 0 0 10px var(--color-yellow-glow);
+        }
+        .custom-marker.few .marker-inner {
+            color: var(--color-yellow);
+        }
+
+        .custom-marker.empty .marker-pin {
+            background: var(--color-red);
+            box-shadow: 0 0 10px var(--color-red-glow);
+        }
+        .custom-marker.empty .marker-inner {
+            color: var(--color-red);
+        }
+
+        .marker-pulse {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: var(--color-green-glow);
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            margin: -22px 0 0 -22px;
+            animation: pin-pulse 1.8s infinite ease-out;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .custom-marker.few .marker-pulse {
+            background: var(--color-yellow-glow);
+        }
+        .custom-marker.empty .marker-pulse {
+            background: var(--color-red-glow);
+            animation: none;
+            display: none;
+        }
+
+        @keyframes pin-pulse {
+            0% { transform: scale(0.5); opacity: 0.8; }
+            100% { transform: scale(1.4); opacity: 0; }
+        }
+
+        /* Stats Banner */
+        .stats-banner {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            background-color: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            margin: 0 16px 16px;
+            padding: 12px 6px;
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
+        }
+
+        .stat-value {
+            font-family: var(--font-heading);
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .stat-value.text-green {
+            color: var(--color-green);
+            text-shadow: 0 0 8px var(--color-green-glow);
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 2px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-divider {
+            width: 1px;
+            height: 24px;
+            background-color: var(--border-color);
+        }
+
+        /* Station List Section */
+        .station-list-section {
+            padding: 0 16px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .section-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .section-title h2 {
+            font-family: var(--font-heading);
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .refresh-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: none;
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 6px 12px;
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+        }
+
+        .refresh-btn:active {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .icon-refresh {
+            width: 12px;
+            height: 12px;
+        }
+
+        .refresh-btn.spinning .icon-refresh {
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .station-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        /* Loading Placeholder */
+        .loading-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 0;
+            color: var(--text-muted);
+        }
+
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 2px solid rgba(255, 255, 255, 0.05);
+            border-top: 2px solid var(--color-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 12px;
+        }
+
+        .loading-placeholder p {
+            font-size: 0.8rem;
+        }
+
+        /* Station Card */
+        .glass-card {
+            background-color: var(--bg-card);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transition: var(--transition-smooth);
+        }
+
+        .glass-card:hover {
+            border-color: rgba(255, 255, 255, 0.15);
+            transform: translateY(-2px);
+            background-color: rgba(25, 37, 66, 0.7);
+        }
+
+        .glass-card:active {
+            transform: scale(0.99);
+        }
+
+        .glass-card.highlighted {
+            border-color: rgba(0, 225, 255, 0.4);
+            box-shadow: 0 0 15px rgba(0, 225, 255, 0.1);
+            background-color: rgba(25, 37, 66, 0.85);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .card-title-group h3 {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .card-title-group .location-desc {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .icon-marker {
+            width: 12px;
+            height: 12px;
+            flex-shrink: 0;
+        }
+
+        /* Availability Badge inside Card */
+        .availability-badge {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        .avail-numbers {
+            font-family: var(--font-heading);
+            font-weight: 700;
+            font-size: 1.05rem;
+            color: var(--color-green);
+        }
+
+        .avail-numbers.few {
+            color: var(--color-yellow);
+        }
+
+        .avail-numbers.empty {
+            color: var(--color-red);
+        }
+
+        .avail-text {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            margin-top: 1px;
+        }
+
+        /* Custom Progress Bar */
+        .progress-container {
+            width: 100%;
+            height: 5px;
+            background-color: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            border-radius: 10px;
+            width: 0%;
+            transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .progress-bar.green {
+            background: linear-gradient(90deg, rgba(0,255,157,0.7) 0%, var(--color-green) 100%);
+            box-shadow: 0 0 8px var(--color-green-glow);
+        }
+
+        .progress-bar.yellow {
+            background: linear-gradient(90deg, rgba(255,208,0,0.7) 0%, var(--color-yellow) 100%);
+            box-shadow: 0 0 8px var(--color-yellow-glow);
+        }
+
+        .progress-bar.red {
+            background: var(--color-red);
+        }
+
+        /* Card Details Grid */
+        .card-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            padding: 8px 0;
+            border-top: 1px dashed rgba(255, 255, 255, 0.05);
+            border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
+        }
+
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .detail-label {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+        }
+
+        .detail-value {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+            margin-top: 1px;
+        }
+
+        /* Card Actions */
+        .card-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .btn {
+            border: none;
+            border-radius: var(--radius-sm);
+            padding: 8px 16px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            font-family: var(--font-heading);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: var(--transition-smooth);
+        }
+
+        .btn-primary {
+            background-color: var(--color-blue);
+            color: #070b13;
+            box-shadow: 0 4px 12px var(--color-blue-glow);
+        }
+
+        .btn-primary:active {
+            transform: scale(0.95);
+            box-shadow: none;
+        }
+
+        .btn-secondary {
+            background-color: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:active {
+            background-color: rgba(255, 255, 255, 0.08);
+        }
+
+        .btn-nav-icon {
+            width: 12px;
+            height: 12px;
+        }
+
+        /* No results state */
+        .no-results {
+            text-align: center;
+            padding: 32px 0;
+            color: var(--text-muted);
+        }
+
+        .no-results p {
+            font-size: 0.85rem;
+        }
+
+        /* Settings/Guide Drawer Overlay */
+        .drawer-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            z-index: 1001;
+            opacity: 0;
+            pointer-events: none;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+
+        .drawer-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+            visibility: visible;
+        }
+
+        /* Slide-up Drawer */
+        .drawer {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--bg-drawer);
+            border-top: 1px solid var(--border-color);
+            border-radius: 20px 20px 0 0;
+            z-index: 1002;
+            transform: translateY(100%);
+            visibility: hidden;
+            pointer-events: none;
+            transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.35s;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.5);
+        }
+
+        .drawer.active {
+            transform: translateY(0);
+            visibility: visible;
+            pointer-events: auto;
+        }
+
+        .drawer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .drawer-header h3 {
+            font-family: var(--font-heading);
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .close-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .drawer-content {
+            padding: 20px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        /* Drawer Tabs */
+        .drawer-tabs {
+            display: flex;
+            background-color: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 4px;
+            margin-bottom: 16px;
+        }
+
+        .drawer-tab-btn {
+            flex: 1;
+            border: none;
+            background: none;
+            color: var(--text-secondary);
+            padding: 8px;
+            font-family: var(--font-heading);
+            font-size: 0.8rem;
+            font-weight: 600;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: var(--transition-smooth);
+        }
+
+        .drawer-tab-btn.active {
+            background-color: rgba(255, 255, 255, 0.06);
+            color: var(--text-primary);
+        }
+
+        /* Tab Panels */
+        .drawer-tab-panel {
+            display: none;
+        }
+
+        .drawer-tab-panel.active {
+            display: block;
+        }
+
+        /* Switches & Forms */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .switch-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            background-color: rgba(255, 255, 255, 0.02);
+            padding: 12px 16px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-color);
+        }
+
+        .label-text {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .label-text strong {
+            font-size: 0.85rem;
+            color: var(--text-primary);
+        }
+
+        .label-desc {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            line-height: 1.3;
+        }
+
+        /* Switch Toggle Styling */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+            flex-shrink: 0;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.1);
+            transition: .3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        input:checked + .slider {
+            background-color: var(--color-green);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+
+        /* Manual Simulation settings card */
+        .sim-manual-control {
+            background-color: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .sim-manual-control h4 {
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .desc-text {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 8px;
+        }
+
+        .config-status-card {
+            display: flex;
+            gap: 12px;
+            background-color: rgba(0, 225, 255, 0.04);
+            border: 1px solid rgba(0, 225, 255, 0.1);
+            padding: 14px;
+            border-radius: var(--radius-md);
+        }
+
+        .card-icon {
+            font-size: 1.2rem;
+        }
+
+        .card-info h5 {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--color-blue);
+        }
+
+        .card-info p {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            margin-top: 2px;
+            line-height: 1.4;
+        }
+
+        /* Guide tab panels */
+        .guide-scrollable {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            padding-bottom: 20px;
+        }
+
+        .guide-step {
+            display: flex;
+            gap: 12px;
+        }
+
+        .step-num {
+            width: 20px;
+            height: 20px;
+            background-color: rgba(255, 255, 255, 0.06);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-heading);
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--color-blue);
+            flex-shrink: 0;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .step-text h5 {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .step-text p {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 2px;
+            line-height: 1.4;
+        }
+
+        /* Form configuration */
+        .api-setup-form {
+            border-top: 1px dashed var(--border-color);
+            padding-top: 16px;
+            margin-top: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .api-setup-form h4 {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--color-blue);
+        }
+
+        .form-item {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-item label {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .form-item input, .form-item select {
+            background-color: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            padding: 8px 12px;
+            color: var(--text-primary);
+            font-size: 0.75rem;
+            outline: none;
+            transition: var(--transition-smooth);
+        }
+
+        .form-item input:focus, .form-item select:focus {
+            border-color: var(--color-blue);
+        }
+
+        .debug-console {
+            margin-top: 4px;
+            background-color: #05080f;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            padding: 8px 12px;
+            font-family: monospace;
+            font-size: 0.65rem;
+            color: #5cf5a4;
+            max-height: 90px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+
+        .form-item-notice {
+            font-size: 0.7rem;
+            color: var(--color-green);
+            line-height: 1.3;
+            background: rgba(0, 255, 157, 0.05);
+            border: 1px solid rgba(0, 255, 157, 0.1);
+            padding: 8px 12px;
+            border-radius: var(--radius-sm);
+            margin-bottom: 4px;
+        }
+
+        .form-group-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 4px;
+        }
+
+        .form-group-buttons .btn {
+            flex: 1;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-logo">
+                <svg class="icon-bolt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                </svg>
+                <h1>天大充电地图</h1>
+            </div>
+            <div class="header-actions">
+                <div class="status-badge" id="status-badge">
+                    <span class="pulse-dot"></span>
+                    <span class="status-text">模拟数据</span>
+                </div>
+                <button class="icon-btn" id="btn-settings" title="配置与教程">
+                    <svg class="icon-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Campus Selector Tab -->
+        <div class="campus-selector">
+            <button class="campus-tab active" data-campus="weijin">卫津路校区</button>
+            <button class="campus-tab" data-campus="peiyang">北洋园校区</button>
+        </div>
+
+        <!-- Search and Filter Panel -->
+        <div class="search-filter-container">
+            <div class="search-box">
+                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text" id="search-input" placeholder="搜索宿舍斋、车棚充电桩...">
+            </div>
+            <button class="filter-toggle-btn" id="btn-filter-free">
+                <span class="filter-indicator"></span>
+                只看空闲
+            </button>
+        </div>
+
+        <!-- Map Section -->
+        <div class="map-wrapper">
+            <div id="map"></div>
+            <button class="map-recenter-btn" id="btn-recenter" title="定位当前校区">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="3 11 22 2 13 21 11 13 3 11"></polygon>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Interactive Stats Banner -->
+        <div class="stats-banner">
+            <div class="stat-item">
+                <span class="stat-value" id="stat-total-stations">0</span>
+                <span class="stat-label">站点总数</span>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <span class="stat-value text-green" id="stat-free-piles">0</span>
+                <span class="stat-label">空闲插口</span>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <span class="stat-value" id="stat-total-piles">0</span>
+                <span class="stat-label">总充电桩</span>
+            </div>
+        </div>
+
+        <!-- Station List Section -->
+        <section class="station-list-section">
+            <div class="section-title">
+                <h2>充电桩列表</h2>
+                <button class="refresh-btn" id="btn-refresh" title="手动刷新">
+                    <svg class="icon-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                    </svg>
+                    <span>刷新</span>
+                </button>
+            </div>
+            <div class="station-list" id="station-list-container">
+                <div class="loading-placeholder">
+                    <div class="spinner"></div>
+                    <p>正在载入充电点位数据...</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Settings and Config Drawer (Slide-up modal) -->
+        <div class="drawer-overlay" id="drawer-overlay"></div>
+        <div class="drawer" id="settings-drawer">
+            <div class="drawer-header">
+                <h3>设置与开发数据接入指南</h3>
+                <button class="close-btn" id="btn-close-drawer">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="drawer-content">
+                <div class="drawer-tabs">
+                    <button class="drawer-tab-btn active" data-target="tab-simulation">模拟与地图微调</button>
+                    <button class="drawer-tab-btn" data-target="tab-guide">开发者抓包配置</button>
+                </div>
+
+                <!-- Simulation Settings -->
+                <div class="drawer-tab-panel active" id="tab-simulation">
+                    <div class="form-group">
+                        <label class="switch-label">
+                            <span class="label-text">
+                                <strong>地图点位拖拽微调 🚀</strong>
+                                <span class="label-desc">开启后可在地图上直接长按拖动任意桩群图标，将其放置到天大校园真实的地理建筑上，松开自动保存</span>
+                            </span>
+                            <div class="switch">
+                                <input type="checkbox" id="toggle-marker-drag">
+                                <span class="slider"></span>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="switch-label">
+                            <span class="label-text">
+                                <strong>动态实时状态模拟</strong>
+                                <span class="label-desc">开启后每 8 秒随机微调空闲桩数，模拟实际充电进出状态</span>
+                            </span>
+                            <div class="switch">
+                                <input type="checkbox" id="toggle-dynamic-sim" checked>
+                                <span class="slider"></span>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div class="sim-manual-control">
+                        <h4>备份/转移地图微调点位 🗺️</h4>
+                        <p class="desc-text">由于浏览器安全限制，不同域名之间的坐标不共享。您可以在此进行一键导入导出：</p>
+                        <div class="btn-group">
+                            <button class="btn btn-secondary" id="btn-export-coords">导出当前坐标文本</button>
+                            <button class="btn btn-primary" id="btn-import-coords">导入并恢复坐标</button>
+                        </div>
+                    </div>
+
+                    <div class="sim-manual-control">
+                        <h4>其它模拟操作</h4>
+                        <p class="desc-text">模拟恶劣天气或用电高峰，快速将全校充电桩置为紧张状态。</p>
+                        <div class="btn-group">
+                            <button class="btn btn-secondary" id="btn-sim-full">一键全满 (0空闲)</button>
+                            <button class="btn btn-primary" id="btn-sim-reset">恢复初始点位与状态</button>
+                        </div>
+                    </div>
+
+                    <div class="config-status-card">
+                        <div class="card-icon">💡</div>
+                        <div class="card-info">
+                            <h5>点位保存说明</h5>
+                            <p>当您开启拖拽微调并移动图标后，新的 GPS 坐标将自动存储在您的浏览器本地中，刷新网页或重新断网进入都不会重置位置。</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Capture Guide -->
+                <div class="drawer-tab-panel" id="tab-guide">
+                    <div class="guide-scrollable">
+                        <div class="guide-step">
+                            <div class="step-num">1</div>
+                            <div class="step-text">
+                                <h5>对接说明</h5>
+                                <p>为了安全合规，开源版本默认使用本地模拟状态运行。若您是项目开发者，需要对接学校充电桩的真实 API，请自行使用微信抓包获取授权 Token 并在此配置。</p>
+                            </div>
+                        </div>
+
+                        <div class="api-setup-form">
+                            <h4>真实数据配置</h4>
+                            
+                            <div class="form-group" style="margin-bottom: 8px;">
+                                <label class="switch-label" style="padding: 8px 12px; border-radius: 6px;">
+                                    <span class="label-text">
+                                        <strong>使用公共/自定义 CORS 跨域代理</strong>
+                                        <span class="label-desc">（推荐开启，允许前端绕过跨域限制拉取数据）</span>
+                                    </span>
+                                    <div class="switch">
+                                        <input type="checkbox" id="toggle-use-cors-proxy" checked>
+                                        <span class="slider"></span>
+                                    </div>
+                                </label>
+                            </div>
+
+                            <div class="form-item">
+                                <label for="input-custom-proxy">自定义中转代理服务器 (如自己部署在 Sealos 的云函数地址)</label>
+                                <input type="text" id="input-custom-proxy" placeholder="例如: https://xxx.sealosbja.site 或 http://localhost:8000">
+                            </div>
+
+                            <div class="form-item">
+                                <label for="select-api-association">此接口关联的地图站点</label>
+                                <select id="select-api-association">
+                                    <option value="auto">自动匹配 (推荐：硬编码自动同步全校所有站点)</option>
+                                    <option value="43">卫津路 - 天大卫津路33斋充电站 (ID: 43)</option>
+                                    <option value="44">卫津路 - 天大卫津路36斋充电站 (ID: 44)</option>
+                                    <option value="40">卫津路 - 天大卫津路30斋充电站 (ID: 40)</option>
+                                    <option value="39">卫津路 - 天大卫津路5斋充电站 (ID: 39)</option>
+                                    <option value="38">卫津路 - 天大卫津路4斋充电站 (ID: 38)</option>
+                                    <option value="750677975760965">卫津路 - 天大卫津路24教学楼充电站 (ID: 750677975760965)</option>
+                                    <option value="45">卫津路 - 天大卫津路铭德道车棚充电站 (ID: 45)</option>
+                                    <option value="41">卫津路 - 天大卫津路50斋充电站 (ID: 41)</option>
+                                    <option value="42">卫津路 - 天大卫津路51斋充电站 (ID: 42)</option>
+                                    <option value="py-桃园">北洋园 - 桃园餐厅北侧停车场充电站</option>
+                                    <option value="py-1895">北洋园 - 1895行政楼后停车场充电站</option>
+                                    <option value="py-竹园">北洋园 - 竹园餐厅东侧充电站</option>
+                                    <option value="py-齐园">北洋园 - 齐园新宿舍区光伏充电站</option>
+                                </select>
+                            </div>
+
+                            <div class="form-item" id="api-url-container">
+                                <label for="input-api-url">抓包获取的原始 API 地址 (URL)</label>
+                                <input type="text" id="input-api-url" placeholder="https://api.cqtcharge.com/wx/station/list">
+                                <div class="form-item-notice" id="api-url-notice" style="display:none;"></div>
+                            </div>
+                            
+                            <div class="form-item">
+                                <label for="input-wx-token">鉴权 Token (Headers 中的 Authorization / token)</label>
+                                <input type="text" id="input-wx-token" placeholder="Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+                            </div>
+                            
+                            <div class="form-item" style="margin-top: 4px;">
+                                <label>抓包调试日志控制台</label>
+                                <div class="debug-console" id="api-debug-log">等待拉取...</div>
+                            </div>
+
+                            <div class="form-item" style="margin-top: 4px;">
+                                <label>接口请求诊断详情列表</label>
+                                <textarea id="api-raw-json-textarea" style="width:100%; height:180px; background:#05080f; border:1px solid var(--border-color); border-radius:var(--radius-sm); color:#5cf5a4; font-family:monospace; font-size:0.65rem; padding:8px; outline:none;" readonly placeholder="此处将自动显示每一个充电网点接口的请求结果..."></textarea>
+                            </div>
+
+                            <div class="form-group-buttons">
+                                <button class="btn btn-primary" id="btn-save-api">更新配置并同步</button>
+                                <button class="btn btn-secondary" id="btn-clear-api">清除配置（切回模拟）</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Unified Frontend App JS Script -->
+    <script>
+        const CAMPUS_CONFIGS = {
+            weijin: {
+                center: [39.1105, 117.1685],
+                zoom: 16
+            },
+            peiyang: {
+                center: [39.0020, 117.3090],
+                zoom: 15.5
+            }
+        };
+
+        // Placeholder for public GitHub repository - user must input their own captured token
+        const DEFAULT_PRESET_TOKEN = "Bearer INPUT_YOUR_TOKEN_HERE";
+
+        // Preloaded TJU charging station locations & attributes
+        let chargingStations = [
+            // 卫津路校区 (Weijin Road Campus - 真实宿舍与教学楼站点)
+            {
+                id: "43", 
+                campus: "weijin",
+                name: "天大卫津路33斋充电站",
+                location: "卫津路校区 33斋宿舍楼旁",
+                total: 20,
+                available: 1,
+                priceElec: 0.60,
+                priceServ: 0.40,
+                coords: [39.112555913822455, 117.1652483940125],
+                provider: "常青藤智能充电"
+            },
+            {
+                id: "44", 
+                campus: "weijin",
+                name: "天大卫津路36斋充电站",
+                location: "卫津路校区 36斋宿舍楼旁",
+                total: 10,
+                available: 3,
+                priceElec: 0.60,
+                priceServ: 0.40,
+                coords: [39.112296547157214, 117.16354608535767],
+                provider: "常青藤智能充电"
+            },
+            {
+                id: "40", 
+                campus: "weijin",
+                name: "天大卫津路30斋充电站",
+                location: "卫津路校区 30斋宿舍楼旁",
+                total: 12,
+                available: 4,
+                priceElec: 0.60,
+                priceServ: 0.40,
+                coords: [39.11289599444712, 117.1674406528473],
+                provider: "常青藤智能充电"
+            },
+            {
+                id: "39", 
+                campus: "weijin",
+                name: "天大卫津路5斋充电站",
+                location: "卫津路校区 5斋宿舍楼旁",
+                total: 8,
+                available: 2,
+                priceElec: 0.60,
+                priceServ: 0.40,
+                coords: [39.10938076261724, 117.16090500354767],
+                provider: "常青藤智能充电"
+            },
+            {
+                id: "38", 
+                campus: "weijin",
+                name: "天大卫津路4斋充电站",
+                location: "卫津路校区 4斋宿舍楼旁",
+                total: 8,
+                available: 2,
+                priceElec: 0.60,
+                priceServ: 0.40,
+                coords: [39.10932653692958, 117.16162025928497],
+                provider: "常青藤智能充电"
+            },
+            {
+                id: "750677975760965", 
+                campus: "weijin",
+                name: "天大卫津路24教学楼充电站",
+                location: "卫津路校区 24教学楼旁",
+                total: 16,
+                available: 6,
+                priceElec: 0.60,
+                priceServ: 0.40,
+                coords: [39.10936450243608, 117.16969370841981],
+                provider: "常青藤智能充电"
+            },
+            {
+                id: "45", 
+                campus: "weijin",
+                name: "天大卫津路铭德道车棚充电站",
+                location: "卫津路校区 铭德道车棚区域",
+                total: 24,
+                available: 8,
+                priceElec: 0.60,
+                priceServ: 0.40,
+                coords: [39.10860686952507, 117.16999590396885],
+                provider: "常青藤智能充电"
+            },
+            {
+                id: "41", 
+                campus: "weijin",
+                name: "天大卫津路50斋充电站",
+                location: "卫津路校区 50斋宿舍楼旁",
+                total: 20,
+                available: 5,
+                priceElec: 0.60,
+                priceServ: 0.40,
+                coords: [39.10615644465918, 117.17143177986146],
+                provider: "常青藤智能充电"
+            },
+            {
+                id: "42", 
+                campus: "weijin",
+                name: "天大卫津路51斋充电站",
+                location: "卫津路校区 51斋宿舍楼旁",
+                total: 20,
+                available: 7,
+                priceElec: 0.60,
+                priceServ: 0.40,
+                coords: [39.10573264529081, 117.17144072055817],
+                provider: "常青藤智能充电"
+            },
+            // 北洋园校区 (Beiyangyuan Campus)
+            {
+                id: "py-桃园",
+                campus: "peiyang",
+                name: "桃园餐厅北侧停车场充电站",
+                location: "桃园餐厅北门外专用充电车位",
+                total: 20,
+                available: 12,
+                priceElec: 0.58,
+                priceServ: 0.42,
+                coords: [39.0012, 117.3115],
+                provider: "常青藤智能充电"
+            },
+            {
+                id: "py-1895",
+                campus: "peiyang",
+                name: "1895行政楼后停车场充电站",
+                location: "1895行政服务大楼正后方",
+                total: 16,
+                available: 8,
+                priceElec: 0.62,
+                priceServ: 0.38,
+                coords: [39.0035, 117.3142],
+                provider: "常青藤智能充电"
+            },
+            {
+                id: "py-竹园",
+                campus: "peiyang",
+                name: "竹园餐厅东侧充电站",
+                location: "竹园餐厅东侧教工公寓区车位",
+                total: 10,
+                available: 3,
+                priceElec: 0.65,
+                priceServ: 0.35,
+                coords: [38.9985, 117.3088],
+                provider: "常青藤智能充电"
+            },
+            {
+                id: "py-齐园",
+                campus: "peiyang",
+                name: "齐园新宿舍区光伏充电站",
+                location: "齐园宿舍楼B区南侧光伏车棚",
+                total: 24,
+                available: 10,
+                priceElec: 0.55,
+                priceServ: 0.45,
+                coords: [39.0058, 117.3060],
+                provider: "天大后勤光伏项目"
+            }
+        ];
+
+        const ORIGINAL_MOCK_DATA = JSON.parse(JSON.stringify(chargingStations));
+
+        let currentCampus = "weijin";
+        let searchFilter = "";
+        let onlyShowFree = false;
+        let mapInstance = null;
+        let markerLayerGroup = null;
+        let simulationInterval = null;
+        let isDynamicSimEnabled = true;
+        let isDragModeEnabled = false;
+
+        // Default API configuration for clean open-source version (Disabled by default)
+        let apiConfig = {
+            enabled: false,
+            useCorsProxy: true,
+            url: "https://m.sgdq123.com:8601/api/ChargeStation/boxpiles",
+            token: DEFAULT_PRESET_TOKEN,
+            associateStationId: "auto",
+            customProxyUrl: "" // Leave blank for users to fill in their own Sealos/cpolar URL
+        };
+
+        // Safe localStorage access helpers to prevent iOS Safari SecurityError crashes on local files
+        function getLocalStorageItem(key) {
+            try {
+                return localStorage.getItem(key);
+            } catch (e) {
+                console.warn("localStorage is not accessible:", e);
+                return null;
+            }
+        }
+
+        function setLocalStorageItem(key, value) {
+            try {
+                localStorage.setItem(key, value);
+                return true;
+            } catch (e) {
+                console.warn("localStorage is not writeable:", e);
+                return false;
+            }
+        }
+
+        function removeLocalStorageItem(key) {
+            try {
+                localStorage.removeItem(key);
+                return true;
+            } catch (e) {
+                console.warn("localStorage is not writeable:", e);
+                return false;
+            }
+        }
+
+        // Load custom fine-tuned coordinates from localStorage
+        function loadSavedCoords() {
+            const saved = getLocalStorageItem("tju_charging_stations_coords");
+            if (saved) {
+                try {
+                    const coordsMap = JSON.parse(saved);
+                    coordsMap.forEach(item => {
+                        let targetId = item.id;
+                        // Map old legacy IDs to new official IDs
+                        if (targetId === "wj-33斋") targetId = "43";
+                        if (targetId === "wj-36斋") targetId = "44";
+                        if (targetId === "wj-30斋") targetId = "40";
+                        if (targetId === "wj-5斋") targetId = "39";
+                        if (targetId === "wj-4斋") targetId = "38";
+                        if (targetId === "wj-24斋") targetId = "750677975760965";
+                        if (targetId === "wj-铭德道") targetId = "45";
+                        if (targetId === "wj-50斋") targetId = "41";
+                        if (targetId === "wj-51斋") targetId = "42";
+
+                        const station = chargingStations.find(s => s.id === targetId);
+                        if (station && Array.isArray(item.coords) && item.coords.length === 2) {
+                            station.coords = item.coords;
+                        }
+                    });
+                } catch (e) {
+                    console.error("加载保存的坐标失败:", e);
+                }
+            }
+        }
+
+        function saveCoordsToStorage() {
+            const coordsList = chargingStations.map(s => ({ id: s.id, coords: s.coords }));
+            setLocalStorageItem("tju_charging_stations_coords", JSON.stringify(coordsList));
+        }
+
+        // Asynchronous Leaflet JS loader
+        function loadLeaflet() {
+            return new Promise((resolve, reject) => {
+                if (typeof L !== 'undefined') {
+                    resolve();
+                    return;
+                }
+                
+                const timeout = setTimeout(() => {
+                    reject(new Error("地图引擎载入超时 (BootCDN 连接失败)"));
+                }, 10000);
+
+                const script = document.createElement("script");
+                script.src = "https://cdn.bootcdn.net/ajax/libs/leaflet/1.9.4/leaflet.js";
+                script.async = true;
+                script.onload = () => {
+                    clearTimeout(timeout);
+                    resolve();
+                };
+                script.onerror = () => {
+                    clearTimeout(timeout);
+                    reject(new Error("地图资源请求失败"));
+                };
+                document.head.appendChild(script);
+            });
+        }
+
+        // Check if Leaflet map is loaded and ready
+        function hasMap() {
+            return typeof L !== 'undefined' && mapInstance !== null;
+        }
+
+        // App Initialization Flow
+        function startApp() {
+            loadSavedCoords();
+            loadSavedApiConfig();
+            initUIEvents();
+            startSimulation();
+            updateUI();
+
+            const mapEl = document.getElementById("map");
+            if (mapEl) {
+                mapEl.innerHTML = `
+                    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:var(--text-secondary); background:#0c1220;">
+                        <div class="spinner"></div>
+                        <span style="font-size:0.75rem; margin-top:8px;">正在预测并载入地图底图...</span>
+                    </div>
+                `;
+            }
+
+            loadLeaflet()
+                .then(() => {
+                    initMap();
+                })
+                .catch(e => {
+                    console.warn("Map module dynamic load failed:", e);
+                    if (mapEl) {
+                        mapEl.innerHTML = `
+                            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; padding:20px; text-align:center; color:var(--text-secondary); background:#0c1220;">
+                                <span style="font-size:1.8rem; margin-bottom:8px;">🗺️</span>
+                                <span style="font-size:0.8rem; font-weight:600; color:var(--text-primary);">地图预览加载超时</span>
+                                <span style="font-size:0.7rem; color:var(--text-muted); margin-top:4px; max-width:85%; line-height:1.4;">（由于您在离线或弱网打开网页，无法加载高德暗色底图。这不影响您的任何操作，您可以使用下方的搜索和状态列表。）</span>
+                            </div>
+                        `;
+                    }
+                });
+            
+            fetchData();
+        }
+
+        function initMap() {
+            if (typeof L === 'undefined') return;
+            
+            const config = CAMPUS_CONFIGS[currentCampus];
+            mapInstance = L.map('map', {
+                zoomControl: false,
+                attributionControl: false
+            }).setView(config.center, config.zoom);
+
+            markerLayerGroup = L.layerGroup().addTo(mapInstance);
+
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                maxZoom: 20,
+                subdomains: 'abcd'
+            }).addTo(mapInstance);
+
+            L.control.zoom({
+                position: 'topleft'
+            }).addTo(mapInstance);
+
+            renderMapMarkers();
+        }
+
+        function renderMapMarkers() {
+            if (!hasMap()) return;
+            
+            markerLayerGroup.clearLayers();
+            const filtered = getFilteredStations();
+
+            filtered.forEach(station => {
+                const freeRatio = station.available / station.total;
+                let colorClass = "green";
+                
+                if (station.available === 0) {
+                    colorClass = "empty";
+                } else if (freeRatio < 0.3) {
+                    colorClass = "few";
+                }
+
+                const customIcon = L.divIcon({
+                    className: `custom-marker ${colorClass}`,
+                    iconSize: [44, 44],
+                    iconAnchor: [22, 22],
+                    html: `
+                        <div class="marker-pulse"></div>
+                        <div class="marker-pin"></div>
+                        <span class="marker-inner">${station.available}</span>
+                    `
+                });
+
+                const marker = L.marker(station.coords, { 
+                    icon: customIcon,
+                    draggable: isDragModeEnabled 
+                }).addTo(markerLayerGroup);
+
+                if (isDragModeEnabled) {
+                    marker.on('dragend', function(event) {
+                        const newPos = event.target.getLatLng();
+                        station.coords = [newPos.lat, newPos.lng];
+                        saveCoordsToStorage();
+                        logToConsole(`已保存「${station.name}」新位置: [${newPos.lat.toFixed(6)}, ${newPos.lng.toFixed(6)}]`, true);
+                    });
+                }
+
+                const popupContent = `
+                    <div class="popup-card">
+                        <div class="popup-title">${station.name}</div>
+                        <div class="popup-status ${colorClass}">
+                            <span class="avail-circle"></span>
+                            <span class="popup-status-text">当前空闲: ${station.available} / ${station.total}</span>
+                        </div>
+                        <div class="popup-meta">
+                            运营方: ${station.provider}<br>
+                            电费: ￥${station.priceElec.toFixed(2)}/度<br>
+                            服务费: ￥${station.priceServ.toFixed(2)}/度
+                            ${isDragModeEnabled ? '<br><b style="color:var(--color-blue);">[可直接按住图标拖拽调整位置]</b>' : ''}
+                        </div>
+                        <button class="btn btn-primary popup-btn" onclick="triggerNavigation('${station.name}', ${station.coords[0]}, ${station.coords[1]})">
+                            <svg class="btn-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="3 11 22 2 13 21 11 13 3 11"></polygon>
+                            </svg>
+                            导航去这里
+                        </button>
+                    </div>
+                `;
+                marker.bindPopup(popupContent);
+            });
+        }
+
+        function getFilteredStations() {
+            return chargingStations.filter(station => {
+                if (station.campus !== currentCampus) return false;
+                if (searchFilter && !station.name.toLowerCase().includes(searchFilter.toLowerCase()) && !station.location.toLowerCase().includes(searchFilter.toLowerCase())) {
+                    return false;
+                }
+                if (onlyShowFree && station.available === 0) return false;
+                return true;
+            });
+        }
+
+        function updateUI() {
+            const filtered = getFilteredStations();
+            const container = document.getElementById("station-list-container");
+            if (!container) return;
+            container.innerHTML = "";
+
+            const currentCampusStations = chargingStations.filter(s => s.campus === currentCampus);
+            const totalStations = currentCampusStations.length;
+            const totalPiles = currentCampusStations.reduce((acc, curr) => acc + curr.total, 0);
+            const freePiles = currentCampusStations.reduce((acc, curr) => acc + curr.available, 0);
+
+            const totalStationsEl = document.getElementById("stat-total-stations");
+            const freePilesEl = document.getElementById("stat-free-piles");
+            const totalPilesEl = document.getElementById("stat-total-piles");
+
+            if (totalStationsEl) totalStationsEl.textContent = totalStations;
+            if (freePilesEl) freePilesEl.textContent = freePiles;
+            if (totalPilesEl) totalPilesEl.textContent = totalPiles;
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="no-results">
+                        <p>⚠️ 没有找到符合条件的充电站</p>
+                    </div>
+                `;
+                return;
+            }
+
+            filtered.forEach(station => {
+                const freeRatio = station.available / station.total;
+                let progressClass = "green";
+                let textClass = "";
+
+                if (station.available === 0) {
+                    progressClass = "red";
+                    textClass = "empty";
+                } else if (freeRatio < 0.3) {
+                    progressClass = "yellow";
+                    textClass = "few";
+                }
+
+                const percentage = (station.available / station.total) * 100;
+                const card = document.createElement("div");
+                card.className = "glass-card";
+                card.id = `card-${station.id}`;
+                
+                card.innerHTML = `
+                    <div class="card-header">
+                        <div class="card-title-group">
+                            <h3>${station.name}</h3>
+                            <div class="location-desc">
+                                <svg class="icon-marker" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                                    <circle cx="12" cy="10" r="3"></circle>
+                                </svg>
+                                <span>${station.location}</span>
+                            </div>
+                        </div>
+                        <div class="availability-badge">
+                            <span class="avail-numbers ${textClass}">${station.available}/${station.total}</span>
+                            <span class="avail-text">空闲插枪数</span>
+                        </div>
+                    </div>
+                    
+                    <div class="progress-container">
+                        <div class="progress-bar ${progressClass}" style="width: ${percentage}%"></div>
+                    </div>
+                    
+                    <div class="card-details">
+                        <div class="detail-item">
+                            <span class="detail-label">单价费率 (度)</span>
+                            <span class="detail-value">￥${(station.priceElec + station.priceServ).toFixed(2)} (电费 ${station.priceElec.toFixed(2)} + 服务 ${station.priceServ.toFixed(2)})</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">运营商 / 网络</span>
+                            <span class="detail-value">${station.provider}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="card-actions">
+                        <button class="btn btn-secondary" onclick="event.stopPropagation(); focusStationOnMap('${station.id}')">
+                            定位地图
+                        </button>
+                        <button class="btn btn-primary" onclick="event.stopPropagation(); triggerNavigation('${station.name}', ${station.coords[0]}, ${station.coords[1]})">
+                            <svg class="btn-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="3 11 22 2 13 21 11 13 3 11"></polygon>
+                            </svg>
+                            导航
+                        </button>
+                    </div>
+                `;
+                
+                card.addEventListener("click", () => {
+                    focusStationOnMap(station.id);
+                });
+
+                container.appendChild(card);
+            });
+        }
+
+        window.focusStationOnMap = function(stationId) {
+            const station = chargingStations.find(s => s.id === stationId);
+            if (!station) return;
+
+            document.querySelectorAll(".glass-card").forEach(c => c.classList.remove("highlighted"));
+            const card = document.getElementById(`card-${stationId}`);
+            if (card) {
+                card.classList.add("highlighted");
+                card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+
+            if (hasMap()) {
+                mapInstance.flyTo(station.coords, 17, {
+                    animate: true,
+                    duration: 1.2
+                });
+
+                setTimeout(() => {
+                    markerLayerGroup.eachLayer(layer => {
+                        if (layer.getLatLng().lat === station.coords[0] && layer.getLatLng().lng === station.coords[1]) {
+                            layer.openPopup();
+                        }
+                    });
+                }, 1200);
+            } else {
+                alert(`📌 ${station.name}\n位置: ${station.location}\n空闲枪数: ${station.available} / ${station.total}`);
+            }
+        };
+
+        window.triggerNavigation = function(name, lat, lng) {
+            const customPrompt = confirm(`即将唤起手机地图导航至：\n「${name}」\n[${lat.toFixed(5)}, ${lng.toFixed(5)}]\n\n点击“确定”将为您生成导航直达链接。`);
+            if (customPrompt) {
+                const url = `https://uri.amap.com/marker?position=${lng},${lat}&name=${encodeURIComponent(name)}`;
+                window.open(url, '_blank');
+            }
+        };
+
+        function logToConsole(msg, isSuccess = true) {
+            const consoleEl = document.getElementById("api-debug-log");
+            if (!consoleEl) return;
+            consoleEl.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            consoleEl.style.color = isSuccess ? "#5cf5a4" : "#ff6b6b";
+        }
+
+        function initUIEvents() {
+            document.querySelectorAll(".campus-tab").forEach(tab => {
+                tab.addEventListener("click", (e) => {
+                    document.querySelectorAll(".campus-tab").forEach(t => t.classList.remove("active"));
+                    e.target.classList.add("active");
+                    currentCampus = e.target.dataset.campus;
+                    
+                    if (hasMap()) {
+                        const config = CAMPUS_CONFIGS[currentCampus];
+                        mapInstance.flyTo(config.center, config.zoom, {
+                            animate: true,
+                            duration: 1.2
+                        });
+                    }
+
+                    setTimeout(() => {
+                        renderMapMarkers();
+                        updateUI();
+                    }, 500);
+                });
+            });
+
+            const searchInput = document.getElementById("search-input");
+            if (searchInput) {
+                searchInput.addEventListener("input", (e) => {
+                    searchFilter = e.target.value;
+                    renderMapMarkers();
+                    updateUI();
+                });
+            }
+
+            const btnFilterFree = document.getElementById("btn-filter-free");
+            if (btnFilterFree) {
+                btnFilterFree.addEventListener("click", () => {
+                    onlyShowFree = !onlyShowFree;
+                    btnFilterFree.classList.toggle("active", onlyShowFree);
+                    renderMapMarkers();
+                    updateUI();
+                });
+            }
+
+            const btnRecenter = document.getElementById("btn-recenter");
+            if (btnRecenter) {
+                btnRecenter.addEventListener("click", () => {
+                    if (hasMap()) {
+                        const config = CAMPUS_CONFIGS[currentCampus];
+                        mapInstance.flyTo(config.center, config.zoom, {
+                            animate: true,
+                            duration: 1
+                        });
+                    }
+                });
+            }
+
+            const btnRefresh = document.getElementById("btn-refresh");
+            if (btnRefresh) {
+                btnRefresh.addEventListener("click", () => {
+                    btnRefresh.classList.add("spinning");
+                    fetchData();
+                    setTimeout(() => {
+                        btnRefresh.classList.remove("spinning");
+                    }, 1000);
+                });
+            }
+
+            const drawer = document.getElementById("settings-drawer");
+            const overlay = document.getElementById("drawer-overlay");
+            const btnSettings = document.getElementById("btn-settings");
+            
+            if (btnSettings && drawer && overlay) {
+                btnSettings.addEventListener("click", () => {
+                    drawer.classList.add("active");
+                    overlay.classList.add("active");
+                });
+            }
+
+            const btnCloseDrawer = document.getElementById("btn-close-drawer");
+            if (btnCloseDrawer) {
+                btnCloseDrawer.addEventListener("click", closeDrawer);
+            }
+            if (overlay) {
+                overlay.addEventListener("click", closeDrawer);
+            }
+
+            function closeDrawer() {
+                if (drawer) drawer.classList.remove("active");
+                if (overlay) overlay.classList.remove("active");
+            }
+
+            document.querySelectorAll(".drawer-tab-btn").forEach(btn => {
+                btn.addEventListener("click", (e) => {
+                    document.querySelectorAll(".drawer-tab-btn").forEach(b => b.classList.remove("active"));
+                    e.target.classList.add("active");
+
+                    const targetId = e.target.dataset.target;
+                    document.querySelectorAll(".drawer-tab-panel").forEach(p => p.classList.remove("active"));
+                    const panel = document.getElementById(targetId);
+                    if (panel) panel.classList.add("active");
+                });
+            });
+
+            const toggleDrag = document.getElementById("toggle-marker-drag");
+            if (toggleDrag) {
+                toggleDrag.addEventListener("change", (e) => {
+                    isDragModeEnabled = e.target.checked;
+                    renderMapMarkers();
+                    logToConsole(isDragModeEnabled ? "地图拖拽微调已开启，可按住图标移动" : "地图拖拽模式已关闭");
+                });
+            }
+
+            const toggleSim = document.getElementById("toggle-dynamic-sim");
+            if (toggleSim) {
+                toggleSim.addEventListener("change", (e) => {
+                    isDynamicSimEnabled = e.target.checked;
+                    if (isDynamicSimEnabled) {
+                        startSimulation();
+                    } else {
+                        clearInterval(simulationInterval);
+                    }
+                });
+            }
+
+            const btnSimFull = document.getElementById("btn-sim-full");
+            if (btnSimFull) {
+                btnSimFull.addEventListener("click", () => {
+                    chargingStations.forEach(s => s.available = 0);
+                    renderMapMarkers();
+                    updateUI();
+                    alert("已将全校充电桩设为「全满状态」！");
+                });
+            }
+
+            const btnSimReset = document.getElementById("btn-sim-reset");
+            if (btnSimReset) {
+                btnSimReset.addEventListener("click", () => {
+                    removeLocalStorageItem("tju_charging_stations_coords");
+                    chargingStations = JSON.parse(JSON.stringify(ORIGINAL_MOCK_DATA));
+                    renderMapMarkers();
+                    updateUI();
+                    if (toggleDrag) toggleDrag.checked = false;
+                    isDragModeEnabled = false;
+                    alert("已恢复默认的正常状态 and 初始地图坐标。");
+                });
+            }
+
+            // Export coordinates
+            const btnExport = document.getElementById("btn-export-coords");
+            if (btnExport) {
+                btnExport.addEventListener("click", () => {
+                    const coordsList = chargingStations.map(s => ({ id: s.id, coords: s.coords }));
+                    const str = JSON.stringify(coordsList);
+                    
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(str).then(() => {
+                            alert("🎉 坐标数据已成功复制到剪贴板！\n打开新网页，进入设置面板点击“导入并恢复坐标”并粘贴即可。");
+                        }).catch(err => {
+                            prompt("复制失败，请手动全选复制以下框内的坐标文本：", str);
+                        });
+                    } else {
+                        prompt("您的浏览器不支持自动复制，请手动全选复制以下文本：", str);
+                    }
+                });
+            }
+
+            // Import coordinates
+            const btnImport = document.getElementById("btn-import-coords");
+            if (btnImport) {
+                btnImport.addEventListener("click", () => {
+                    const str = prompt("请粘贴导出的坐标文本：");
+                    if (str && str.trim()) {
+                        try {
+                            const coordsMap = JSON.parse(str.trim());
+                            let successCount = 0;
+                            coordsMap.forEach(item => {
+                                let targetId = item.id;
+                                if (targetId === "wj-33斋") targetId = "43";
+                                if (targetId === "wj-36斋") targetId = "44";
+                                if (targetId === "wj-30斋") targetId = "40";
+                                if (targetId === "wj-5斋") targetId = "39";
+                                if (targetId === "wj-4斋") targetId = "38";
+                                if (targetId === "wj-24斋") targetId = "750677975760965";
+                                if (targetId === "wj-铭德道") targetId = "45";
+                                if (targetId === "wj-50斋") targetId = "41";
+                                if (targetId === "wj-51斋") targetId = "42";
+
+                                const station = chargingStations.find(s => s.id === targetId);
+                                if (station && Array.isArray(item.coords) && item.coords.length === 2) {
+                                    station.coords = item.coords;
+                                    successCount++;
+                                }
+                            });
+                            saveCoordsToStorage();
+                            renderMapMarkers();
+                            updateUI();
+                            alert(`🎉 坐标导入成功！已更新 ${successCount} 个站点物理位置。`);
+                        } catch (e) {
+                            alert("❌ 导入失败，坐标文本格式不正确，请确保完整复制了导出的文本。");
+                        }
+                    }
+                });
+            }
+
+            const selectAssociation = document.getElementById("select-api-association");
+            const apiUrlContainer = document.getElementById("api-url-container");
+            const urlInput = document.getElementById("input-api-url");
+            const apiNotice = document.getElementById("api-url-notice");
+            
+            function updateUrlFieldVisibility() {
+                if (selectAssociation && apiUrlContainer && urlInput && apiNotice) {
+                    if (selectAssociation.value === "auto") {
+                        urlInput.disabled = true;
+                        urlInput.value = "https://m.sgdq123.com:8601/api/ChargeStation/boxpiles";
+                        apiNotice.innerHTML = "💡 <b>一键同步模式已激活：</b>系统已硬编码内置了天大卫津路全部 9 个宿舍及车棚的接口。您只需填写下方微信抓包获取的 Token 即可自动连通！";
+                        apiNotice.style.display = "block";
+                    } else {
+                        urlInput.disabled = false;
+                        if (urlInput.value === "https://m.sgdq123.com:8601/api/ChargeStation/boxpiles") {
+                            urlInput.value = "";
+                        }
+                        apiNotice.style.display = "none";
+                    }
+                }
+            }
+
+            if (selectAssociation) {
+                selectAssociation.addEventListener("change", updateUrlFieldVisibility);
+            }
+
+            const btnSaveApi = document.getElementById("btn-save-api");
+            if (btnSaveApi) {
+                btnSaveApi.addEventListener("click", () => {
+                    const associationVal = document.getElementById("select-api-association").value;
+                    const urlVal = document.getElementById("input-api-url").value.trim();
+                    const tokenVal = document.getElementById("input-wx-token").value.trim();
+                    const useCorsProxy = document.getElementById("toggle-use-cors-proxy").checked;
+                    const customProxyVal = document.getElementById("input-custom-proxy").value.trim();
+
+                    if (associationVal !== "auto" && !urlVal) {
+                        alert("请输入微信抓包获取的原始 API 地址！");
+                        return;
+                    }
+                    if (!tokenVal || tokenVal.includes("INPUT_YOUR_TOKEN_HERE")) {
+                        alert("请输入有效的鉴权 Token！");
+                        return;
+                    }
+
+                    apiConfig.enabled = true;
+                    apiConfig.useCorsProxy = useCorsProxy;
+                    apiConfig.url = associationVal === "auto" ? "https://m.sgdq123.com:8601/api/ChargeStation/boxpiles" : urlVal;
+                    apiConfig.token = tokenVal;
+                    apiConfig.associateStationId = associationVal;
+                    apiConfig.customProxyUrl = customProxyVal;
+
+                    setLocalStorageItem("tju_charging_api", JSON.stringify(apiConfig));
+                    
+                    logToConsole("配置已保存，正在发起全校请求验证...");
+                    fetchData();
+                });
+            }
+
+            const btnClearApi = document.getElementById("btn-clear-api");
+            if (btnClearApi) {
+                btnClearApi.addEventListener("click", () => {
+                    apiConfig.enabled = false;
+                    apiConfig.url = "";
+                    apiConfig.token = "";
+                    apiConfig.associateStationId = "auto";
+                    apiConfig.customProxyUrl = "";
+                    removeLocalStorageItem("tju_charging_api");
+                    
+                    const urlInput = document.getElementById("input-api-url");
+                    const tokenInput = document.getElementById("input-wx-token");
+                    const customProxyInput = document.getElementById("input-custom-proxy");
+                    const associationSelect = document.getElementById("select-api-association");
+                    if (urlInput) urlInput.value = "";
+                    if (tokenInput) tokenInput.value = "";
+                    if (customProxyInput) customProxyInput.value = "";
+                    if (associationSelect) associationSelect.value = "auto";
+                    if (apiNotice) apiNotice.style.display = "none";
+                    if (urlInput) urlInput.disabled = false;
+                    
+                    const badge = document.getElementById("status-badge");
+                    if (badge) {
+                        badge.classList.remove("live");
+                        badge.querySelector(".status-text").textContent = "模拟数据";
+                    }
+                    
+                    chargingStations = JSON.parse(JSON.stringify(ORIGINAL_MOCK_DATA));
+                    loadSavedCoords();
+                    renderMapMarkers();
+                    updateUI();
+                    
+                    logToConsole("已切回模拟数据模式");
+                    alert("已恢复本地模拟模式。");
+                    closeDrawer();
+                });
+            }
+            
+            updateUrlFieldVisibility();
+        }
+
+        function startSimulation() {
+            clearInterval(simulationInterval);
+            if (!isDynamicSimEnabled || apiConfig.enabled) return;
+
+            simulationInterval = setInterval(() => {
+                const countToModify = Math.floor(Math.random() * 2) + 1;
+                for (let i = 0; i < countToModify; i++) {
+                    const randomIndex = Math.floor(Math.random() * chargingStations.length);
+                    const station = chargingStations[randomIndex];
+                    const isAdding = Math.random() > 0.55;
+                    
+                    if (isAdding && station.available < station.total) {
+                        station.available++;
+                    } else if (!isAdding && station.available > 0) {
+                        station.available--;
+                    }
+                }
+                renderMapMarkers();
+                updateUI();
+            }, 8000);
+        }
+
+        function loadSavedApiConfig() {
+            const saved = getLocalStorageItem("tju_charging_api");
+            if (saved) {
+                try {
+                    const loaded = JSON.parse(saved);
+                    apiConfig = Object.assign({}, apiConfig, loaded);
+                } catch (e) {
+                    console.error("解析本地保存的API配置失败:", e);
+                }
+            }
+
+            const urlInput = document.getElementById("input-api-url");
+            const tokenInput = document.getElementById("input-wx-token");
+            const customProxyInput = document.getElementById("input-custom-proxy");
+            const proxyToggle = document.getElementById("toggle-use-cors-proxy");
+            const associationSelect = document.getElementById("select-api-association");
+            
+            if (urlInput && apiConfig.url) urlInput.value = apiConfig.url;
+            if (tokenInput && apiConfig.token) tokenInput.value = apiConfig.token;
+            if (customProxyInput && apiConfig.customProxyUrl) customProxyInput.value = apiConfig.customProxyUrl;
+            if (proxyToggle && apiConfig.useCorsProxy !== undefined) proxyToggle.checked = apiConfig.useCorsProxy;
+            if (associationSelect && apiConfig.associateStationId) associationSelect.value = apiConfig.associateStationId;
+        }
+
+        const fetchWithTimeout = async (resource, options = {}) => {
+            const { timeout = 6000 } = options;
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), timeout);
+            
+            try {
+                const response = await fetch(resource, {
+                    ...options,
+                    signal: controller.signal
+                });
+                clearTimeout(id);
+                return response;
+            } catch (error) {
+                clearTimeout(id);
+                throw error;
+            }
+        };
+
+        async function fetchData() {
+            if (!apiConfig.enabled) {
+                setTimeout(() => {
+                    renderMapMarkers();
+                    updateUI();
+                }, 500);
+                return;
+            }
+
+            const badge = document.getElementById("status-badge");
+            if (badge) badge.querySelector(".status-text").textContent = "正在拉取...";
+
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            if (apiConfig.token) {
+                headers['Authorization'] = apiConfig.token;
+                headers['token'] = apiConfig.token;
+            }
+
+            try {
+                const associateId = apiConfig.associateStationId || "auto";
+                
+                if (associateId === "auto") {
+                    const baseUrl = apiConfig.url ? apiConfig.url.split('?')[0] : 'https://m.sgdq123.com:8601/api/ChargeStation/boxpiles';
+                    const targetStations = chargingStations.filter(s => /^\d+$/.test(s.id));
+                    
+                    logToConsole(`开启频次控制：正在通过代理拉取 ${targetStations.length} 个点位数据...`);
+                    
+                    const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+                    const results = [];
+                    
+                    for (let i = 0; i < targetStations.length; i++) {
+                        const station = targetStations[i];
+                        
+                        if (i > 0) {
+                            await delay(650); // 防刷频限制
+                        }
+                        
+                        let stationFetchUrl = baseUrl + '?stationId=' + station.id;
+                        if (apiConfig.useCorsProxy) {
+                            if (apiConfig.customProxyUrl) {
+                                const proxyBase = apiConfig.customProxyUrl.replace(/\/$/, "");
+                                stationFetchUrl = proxyBase + '/proxy?url=' + encodeURIComponent(baseUrl + '?stationId=' + station.id);
+                            } else {
+                                // 动态选择公共 CORS 代理
+                                stationFetchUrl = 'https://corsproxy.io/?url=' + encodeURIComponent(baseUrl + '?stationId=' + station.id);
+                            }
+                        }
+                        
+                        let success = false;
+                        let lastReason = "";
+                        let lastRaw = null;
+                        let retries = 1;
+                        
+                        while (retries >= 0 && !success) {
+                            try {
+                                const res = await fetchWithTimeout(stationFetchUrl, { 
+                                    method: 'GET', 
+                                    headers: headers,
+                                    timeout: 6000 
+                                });
+                                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                                const json = await res.json();
+                                lastRaw = json;
+                                
+                                if (json.code === 429 || json.errcode === "ExceedRateLimit") {
+                                    await delay(1500);
+                                    retries--;
+                                    continue;
+                                }
+                                
+                                let detailTotal = 0;
+                                let detailAvailable = 0;
+                                if (Array.isArray(json.data) && json.data.length > 0 && json.data[0].piles) {
+                                    json.data.forEach(box => {
+                                        if (box.piles && Array.isArray(box.piles)) {
+                                            box.piles.forEach(pile => {
+                                                detailTotal++;
+                                                if (pile.showStatus === 0 || pile.showStatusString === "空闲" || pile.status === 0) {
+                                                    detailAvailable++;
+                                                }
+                                            });
+                                        }
+                                    });
+                                    station.total = detailTotal;
+                                    station.available = detailAvailable;
+                                    success = true;
+                                    results.push({ id: station.id, success: true, name: station.name, free: detailAvailable, total: detailTotal });
+                                    break;
+                                } else {
+                                    throw new Error("数据非电枪列表格式");
+                                }
+                            } catch (e) {
+                                lastReason = e.name === "AbortError" ? "连接超时" : e.message;
+                                retries--;
+                                if (retries >= 0) {
+                                    await delay(800);
+                                }
+                            }
+                        }
+                        
+                        if (!success) {
+                            results.push({ id: station.id, success: false, name: station.name, reason: lastReason, raw: lastRaw });
+                        }
+                        
+                        renderMapMarkers();
+                        updateUI();
+                    }
+                    
+                    const successCount = results.filter(r => r.success).length;
+                    logToConsole(`同步完毕！成功数: ${successCount} 个。`, true);
+                    
+                    const textareaEl = document.getElementById("api-raw-json-textarea");
+                    if (textareaEl) {
+                        textareaEl.value = results.map(r => {
+                            if (r.success) {
+                                return `✅ ${r.name} (ID: ${r.id}) -> 空闲 ${r.free}/${r.total}`;
+                            } else {
+                                return `❌ ${r.name} (ID: ${r.id}) -> 失败: ${r.reason}`;
+                            }
+                        }).join('\n');
+                    }
+                    
+                } else {
+                    // 单个网点绑定
+                    let fetchUrl = apiConfig.url;
+                    if (apiConfig.useCorsProxy) {
+                        if (apiConfig.customProxyUrl) {
+                            const proxyBase = apiConfig.customProxyUrl.replace(/\/$/, "");
+                            fetchUrl = proxyBase + '/proxy?url=' + encodeURIComponent(apiConfig.url);
+                        } else {
+                            fetchUrl = 'https://corsproxy.io/?url=' + encodeURIComponent(apiConfig.url);
+                        }
+                    }
+
+                    logToConsole(`单点位对接：正在拉取单个电站详情...`);
+                    const response = await fetchWithTimeout(fetchUrl, { 
+                        method: 'GET', 
+                        headers: headers,
+                        timeout: 6000 
+                    });
+                    if (!response.ok) throw new Error(`HTTP 状态码: ${response.status}`);
+                    const data = await response.json();
+                    
+                    const textareaEl = document.getElementById("api-raw-json-textarea");
+                    if (textareaEl) {
+                        textareaEl.value = JSON.stringify(data, null, 2);
+                    }
+
+                    let isDetailFormat = false;
+                    let detailTotal = 0;
+                    let detailAvailable = 0;
+
+                    if (Array.isArray(data.data) && data.data.length > 0 && data.data[0].piles) {
+                        isDetailFormat = true;
+                        data.data.forEach(box => {
+                            if (box.piles && Array.isArray(box.piles)) {
+                                box.piles.forEach(pile => {
+                                    detailTotal++;
+                                    if (pile.showStatus === 0 || pile.showStatusString === "空闲" || pile.status === 0) {
+                                        detailAvailable++;
+                                    }
+                                });
+                            }
+                        });
+                    }
+
+                    if (isDetailFormat) {
+                        const targetStation = chargingStations.find(s => s.id === associateId);
+                        if (targetStation) {
+                            targetStation.available = detailAvailable;
+                            targetStation.total = detailTotal;
+                            logToConsole(`关联成功「${targetStation.name}」`, true);
+                        }
+                    } else {
+                        throw new Error("格式不正确，建议切回“自动匹配”");
+                    }
+                }
+
+                if (badge) {
+                    badge.classList.add("live");
+                    badge.querySelector(".status-text").textContent = "实时连通";
+                }
+                
+                renderMapMarkers();
+                updateUI();
+
+            } catch (error) {
+                console.error(error);
+                if (badge) {
+                    badge.classList.remove("live");
+                    badge.querySelector(".status-text").textContent = "拉取失败";
+                }
+                logToConsole("错误: " + error.message, false);
+            }
+        }
+
+        // Run immediately
+        startApp();
+    </script>
+</body>
+</html>
