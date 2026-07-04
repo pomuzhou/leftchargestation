@@ -125,7 +125,7 @@ export default async function (ctx) {
 
 | 微信扫码赞助 | 支付宝扫码赞助 |
 | :---: | :---: |
-| <img src="docs/wechat_pay.png" width="220" alt="微信赞助二维码" /> | <img src="docs/alipay.png" width="220" alt="支付宝赞助二维码" /> |
+| <img src="docs/wechat_pay.jpg" width="220" alt="微信赞助二维码" /> | <img src="docs/alipay.jpg" width="220" alt="支付宝赞助二维码" /> |
 
 *(打赏时欢迎备注您的 TJU 斋号/昵称，我们会将所有赞助人名单登记于下方的致谢栏中！)*
 
