@@ -113,7 +113,14 @@ export default async function (ctx) {
 3. 填入您抓包获取的 **Token**；
 4. 点击 **「更新配置并同步」**。此时网页将立即通过您的云函数，以安全的速度限速拉取天大各点位的实时真实数据！
 
+连接成功后的示意图如下所示：
+
+<p align="center">
+  <img src="docs/scheme.jpg" width="320" alt="实时数据连接成功示意图" />
+</p>
+
 ---
+
 
 ## 💖 支持与赞助 (Buy Me a Coffee)
 
